@@ -1,29 +1,14 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>
+
+#define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
 
 #include <Windows.h>
-#include <share.h>
 
 #include "scripter.h"
 #include "utils.h"
-
-static void WriteLog(const char* str, ...)
-{
-#ifdef _DEBUG
-	FILE* fh = _fsopen("maniafix.log", "ab", _SH_DENYWR);
-
-	va_list va;
-	va_start(va, str);
-	fprintf(fh, "[%d] ", GetCurrentProcessId());
-	vfprintf(fh, str, va);
-	fprintf(fh, "\n");
-	va_end(va);
-
-	fclose(fh);
-#endif
-}
 
 static char* WideToAscii(wchar_t* orig)
 {
@@ -54,10 +39,10 @@ static void HookUnacquire()
 	// There must be a cleaner way to check this?
 	if (SUCCEEDED(hres)) {
 		// We skip the Unacquire call!
-		WriteLog("Skipping '%s'", szName);
+		Scripter::Utils::log("Skipping '%s'", szName);
 	} else {
 		// We manually call Unacquire.
-		WriteLog("Unacquiring '%s' %p", szName, g_hookUnacquireDinputDevice);
+		Scripter::Utils::log("Unacquiring '%s' %p", szName, g_hookUnacquireDinputDevice);
 		g_hookUnacquireDinputDevice->Unacquire();
 	}
 
@@ -103,18 +88,32 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		return TRUE;
 	}
 
-	WriteLog("Maniafix initializing...");
+	Scripter::Utils::log("Maniafix initializing...");
 
 	Scripter::init();
 
-	// Old fix: Disable all Unacquire calls
-	//unsigned char arr[] = { 0xEB, 0x33 };
-	//Scripter::Utils::patch(0x004BE839, arr, 2);
+	char fnmBuffer[1024];
+	GetModuleFileNameA(NULL, fnmBuffer, 1024);
+	char* szExeName = strrchr(fnmBuffer, '\\') + 1;
 
-	// New fix: Manually call Unacquire only for Mouse and Keyboard
-	Scripter::Utils::hook_call(0x004BE83D, _HookUnacquire, 46 - 5);
+	Scripter::Utils::log("Exe name: %s", szExeName);
 
-	WriteLog("Maniafix initialized successfully!");
+	if (!strcmp(szExeName, "TmForever.exe")) {
+		// Old fix: Disable all Unacquire calls on TmForever
+		//unsigned char arr[] = { 0xEB, 0x35 };
+		//Scripter::Utils::patch(0x008FB36B, arr, 2);
 
+		// This is delayed due to encrypted game binary, see dinput_hook.cpp
+
+	} else if (!strcmp(szExeName, "ManiaPlanet.exe")) {
+		// New fix: Manually call Unacquire only for Mouse and Keyboard, so that it doesn't act strange on ShootMania
+		Scripter::Utils::hook_call(0x004BE83D, _HookUnacquire, 46 - 5);
+
+	} else {
+		Scripter::Utils::log("Unknown process name!");
+		return TRUE;
+	}
+
+	Scripter::Utils::log("Maniafix initialized successfully!");
 	return TRUE;
 }

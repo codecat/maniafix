@@ -5,6 +5,8 @@ namespace Scripter
 {
 	namespace Utils
 	{
+		void log(const char* str, ...);
+
 		int patch(unsigned int ptr, void* buffer, unsigned int len);
 
 		template<typename TF>
